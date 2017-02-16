@@ -1,6 +1,7 @@
 # timeline-datalet
 A Timeline Datalet for time based data visualizzation in DEEP
 Before using this datalet on SPOD, you should add this lines to "Datalet-Ecosystem-Provider\deep\datalets.xml":
+```xml
         <!--Timeline-->
         <component>
             <name>timeline-datalet</name>
@@ -46,3 +47,4 @@ Before using this datalet on SPOD, you should add this lines to "Datalet-Ecosyst
                 </inputs>
             </idm>
         </component>
+```
