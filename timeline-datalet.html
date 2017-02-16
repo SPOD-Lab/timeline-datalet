@@ -1,0 +1,372 @@
+<!--
+@license
+    The MIT License (MIT)
+
+    Copyright (c) 2017 Dipartimento di Informatica - Università di Salerno - Italy
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
+-->
+<!--
+* Developed by :
+* ROUTE-TO-PA Project - grant No 645860. - www.routetopa.eu
+*
+-->
+
+<link rel="import" href="../base-ajax-json-alasql-datalet/base-ajax-json-alasql-datalet.html">
+<link title="timeline-styles" rel="stylesheet" href="https://cdn.knightlab.com/libs/timeline3/latest/css/timeline.css">
+<script src="https://cdn.knightlab.com/libs/timeline3/latest/js/timeline.js"></script>
+
+<!--
+The `datatable-datalet` is a porting of Datatables JQuery library in a web component that has built up by using Polymer.
+Pass to this component a data url(CKAN api uri) and a string with one or multiple query in JsonPath format(separated by spaces) and it'll show a
+table with data and query attributes with all Datatables library features.
+
+Example:
+
+    <timeline-datalet data-url="blablablalblb" fields=""></timeline-datalet>
+
+@element timeline-datalet
+@status v0.1
+@demo demo/index.html
+@group datalets
+-->
+
+<dom-module id="timeline-datalet">
+    <template>
+
+        <div id='timeline_embed' style="width: 100%; height: 600px"></div>
+        <base-ajax-json-alasql-datalet data-url="{{dataUrl}}" fields="{{fields}}" data="{{data}}" title="{{title}}" description="{{description}}" export_menu="{{export_menu}}"></base-ajax-json-alasql-datalet>
+    </template>
+
+    <script>
+        var TimelineBehavior = {
+
+            /*selectData : function() {
+            },*/
+
+            /*filterData : function() {
+            },*/
+
+            presentData: function(){
+
+                if(!this.data) return;
+
+
+                this.data[4].data = this.date(this.data[4].data, true);
+
+                if(this.data[5]!=null){
+                    this.data[5].data = this.date(this.data[5].data, false);
+                }
+
+                var timelinejson = this.makethejson(this.data);
+                this._component.timeline = new TL.Timeline(this._component.$.timeline_embed, timelinejson);
+            },
+
+            makethejson: function (events) {
+                var item = {};
+                var regex = new RegExp("[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)");
+                var media = "";
+                var caption = "";
+                var i = 0;
+                item["events"] = [];
+                while(i<events[0].data.length){
+                    if(events[3].data[i]==""||events[3].data[i]=="null"||events[3].data[i]==null)    //dati vuoti
+                        media = null;
+                    else{
+                        if(events[0].data[i]!=null)
+                            caption = events[0].data[i];
+                        else
+                            caption = "";
+                        if(events[3].data[i]==null)
+                            media = null;
+                        else if(events[3].data[i].match(regex))    //URL Media
+                            media = [events[3].data[i], caption, null, "media"];
+                        else    //Map
+                            media = [events[3].data[i], caption, null, "map"];
+                    }
+
+                    var start = [];
+                    var end = [];
+                    if(events[4].data[i].constructor === Array){    //intervalli
+                        start = [events[4].data[i][0], null, null];
+                        if(events[4].data[i][0]<events[4].data[i][1])
+                            end = [events[4].data[i][1], null, null];
+                    }else{
+                        start = [events[4].data[i], null, null];
+                        if(events[5]!=null && events[5].data[i]>=events[4].data[i])
+                            end = [events[5].data[i], null, null];
+                        else
+                            end = null;
+                    }
+                    var text = [events[1].data[i], events[2].data[i]];
+                    if(media==null && text[0]=="" && text[1]==""){
+                            //dato "sporco": NO MEDIA, NO NOME, NO DESCRIZIONE, salta
+                    }else
+                        item["events"].push(this.makeevent(media, start, end, text));
+                    i = i+1;
+                }
+                return item;
+            },
+
+            makemap: function (latlong, caption, credit) {
+                var url = "https://www.google.com/maps/@"+latlong+",19z/";
+                return this.makemedia(url, caption, credit);
+            },
+
+            makemedia: function (url, caption, credit) {
+                var media = {};
+                media["url"] = url;
+                if(caption!=null)
+                    media["caption"] = caption;
+                if(credit!=null)
+                    media["credit"] = credit;
+                return media;
+            },
+            
+            makeevent: function (media, start_date, end_date, text) {
+                var event = {};
+                if(media!=null){
+                    if(media[3]=="media")
+                        event["media"] = this.makemedia(media[0], media[1], media[2]);
+                    else if(media[3]=="map")
+                        event["media"] = this.makemap(media[0], media[1], media[2]);
+                }
+                event["start_date"] = this.makedate(start_date[0], start_date[1], start_date[2]);
+                if(end_date!=null)
+                    event["end_date"] = this.makedate(end_date[0], end_date[1], end_date[2]);
+                if(text!=null)
+                    event["text"] = this.maketext(text[0], text[1]);
+                return event;
+            },
+            
+            maketext: function (headline, textparam) {
+                var text = {};
+                if(headline!=null)
+                    text["headline"] = headline;
+                if(textparam!=null)
+                    text["text"] = textparam;
+                return text;
+            },
+            
+            makedate: function (year, month, day) {
+                var date = {};
+                if(month!=null)
+                    date["month"] = month;
+                if(day!=null)
+                    date["day"] = day;
+                date["year"] = year;
+                return date;
+            },
+
+            numex: function(txt){
+                var numb = txt.match(/\d/g);
+                numb = numb.join("");
+                return numb;
+            },
+            romanize: function(string){
+                var regex = new RegExp('^M{0,4}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$');
+                var array = string.split(' ');
+                var toreturn = [];
+                var half = 0;
+                for(var i = 0; i<array.length; i++){
+                    if(array[i].toLowerCase().includes("second"))
+                        half = 50;
+                    if(array[i].match(regex)){
+                        toreturn.push((this.fromRoman(array[i])*100) - 100 + half);
+                        half = 0;
+                    }    //fine if
+                }    //fine for
+                if(toreturn.length==0)
+                    toreturn = [0, 0];
+                return toreturn;
+            },    //fine romanize
+
+            fromRoman: function(str) {
+                var tmp = [];
+                var toReturn = 0;
+                var array = str.split('');
+                for(var i = 0; i<array.length; i++){
+                    if(array[i]=='X'||array[i]=='x')
+                        tmp[i] = 10;
+                    else if(array[i]=='V'||array[i]=='v')
+                        tmp[i] = 5;
+                    else if(array[i]=='I'||array[i]=='i')
+                        tmp[i] = 1;
+                }    //fine for
+                for(var i = 0; i<tmp.length; i++){
+                    if(i!=tmp.length-1){
+                        if(tmp[i]>=tmp[i+1]){
+                            toReturn = toReturn + tmp[i];
+                        }else{
+                            var number = tmp[i+1] - tmp[i];
+                            i = i+1;
+                            toReturn = toReturn+number;
+                        }
+                    }else
+                        toReturn = toReturn+tmp[i];
+                }    //fine for
+                return toReturn;
+            },
+
+            date: function(date, on){
+                var todelet = [];
+                if(on) {
+                    for (var i = 0; i < date.length; i++) {
+                        todelet.push(false);
+                    }
+                }
+                for(var i = 0; i<date.length; i++){
+                    if(date[i]=='?'||date[i]=='') {
+                        date[i] = 0;
+                        if(on)
+                            todelet[i] = true;
+                    }else if(typeof date[i] === 'number' || date[i] instanceof Number){
+                        //non è necessario alcun lavoro se abbiamo un number
+                    } else if(typeof date[i] === 'string' || date[i] instanceof String){
+                            var matches = date[i].match(/\d+/g); //controlla se la stringa contiene numeri arabi
+                            if (matches != null) {
+                                if(this.about(date[i]))
+                                    this.data[2].data[i]= this.data[2].data[i] + "<br><br><br><br> <p style='color:red'>Data incerta.</p>";
+                                if (date[i].includes("-")) {
+                                    var mol = 1;
+                                    if (this.beforechrist(date[i]))  //controlla se è una data Avanti Cristo
+                                        mol = -1;
+                                    var tmp = date[i].split("-");
+                                    tmp = this.date(tmp, false);
+                                    tmp[0] = mol * tmp[0];
+                                    date[i] = tmp;
+                                } else {
+                                    var interval = 0;
+                                    if(date[i].toLowerCase().includes("second")){
+                                        interval = 51;
+                                    }else if(date[i].toLowerCase().includes("prima")||date[i].toLowerCase().includes("first")){
+                                        interval = 50;
+                                    }
+                                    if (this.beforechrist(date[i]))
+                                        date[i] = (-1) * this.numex(date[i]);
+                                    else
+                                        date[i] = this.numex(date[i]);
+                                    if(interval==51) {
+                                        var num = parseInt(date[i]);
+                                        date[i] = [num + interval, num + 99];
+                                    }else if(interval==50){
+                                        var num = date[i];
+                                        date[i] = [num, num+interval];
+                                    }
+                                }
+                            } else {    //numeri romani
+                                var roman = this.romanize(date[i]);
+                                if(roman==[0, 0]&&on)
+                                    todelet[i] = true;
+                                else if (roman.length == 2)    //intervallo
+                                    date[i] = [roman[0], roman[1]];
+                                else    //data singola
+                                    date[i] = [roman[0], this.romaninterval(roman[0])];
+                            }     //fine else numeri romani
+                        }else{
+                        date[i] = 0;
+                        if(on)
+                            todelet[i] = true;
+                    }
+                }    //fine for
+                if(on) {
+                    this.data = this.cleandata(this.data, todelet);
+                }
+                return date;
+            },
+
+            romaninterval: function(number){
+                if(number%100==50)
+                    return number+49;
+                else
+                    return number+99;
+            },
+
+            beforechrist: function(date){
+                date = date.toLowerCase();
+                return (date.includes("a.c.")||date.includes("ac")||date.includes("bc")||date.includes("b.c."));
+            },
+
+            cleandata: function (data, todelet) {
+                for(var i=0; i<todelet.length; i++){
+                    if(todelet[i]){
+                        data[1].data[i] = "";
+                        data[2].data[i]= "";
+                        data[3].data[i] = null;
+                    }
+                }
+                return data;
+            },
+
+            about: function (data){
+                var str = data.toLowerCase();
+                return(str.includes("circa")||str.includes("intorno")||str.includes("?")||str.includes("ca"));
+            }
+            
+        };
+
+        Polymer({
+            is : 'timeline-datalet' ,
+
+            properties: {
+
+                /**
+                 * It's the component behavior
+                 *
+                 * @attribute behavior
+                 * @type Object
+                 * @default {}
+                 */
+                behavior : {
+                    type : Object,
+                    value : {}
+                },
+
+                data : {
+                    type : Array,
+                    value : undefined
+                },
+                /**
+                 * Control the export menu
+                 * xxxx BITMASK. FROM RIGHT : HTML, PNG, RTF, MY SPACE (eg. 1111 show all, 0000 hide all)
+                 *
+                 * @attribute export_menu
+                 * @type Number
+                 * @default 15
+                 */
+                export_menu : {
+                    type  : Number,
+                    value : 9 // xxxx BITMASK. FROM RIGHT : HTML, PNG, RTF, MY SPACE (eg. 1111 show all, 0000 hide all)
+                },
+
+                timeline : {
+                    type : Object,
+                    value : {}
+                }
+            },
+
+            ready: function(){
+                this.behavior =  $.extend(true, {}, BaseDataletBehavior, WorkcycleBehavior, AjaxJsonAlasqlBehavior, TimelineBehavior);
+                this.async(function(){this.behavior.init(this)},0);
+            }
+        });
+
+    </script>
+</dom-module>
+
